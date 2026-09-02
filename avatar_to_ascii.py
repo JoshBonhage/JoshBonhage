@@ -25,10 +25,10 @@ import urllib.request
 from PIL import Image, ImageDraw, ImageFilter, ImageOps
 
 USER = "JoshBonhage"
-COLS = int(sys.argv[1]) if len(sys.argv) > 1 else 95      # 95 is the widest that clears INFO_X
+COLS = int(sys.argv[1]) if len(sys.argv) > 1 else 77      # 77 is the widest that clears INFO_X
 KEEP = float(sys.argv[2]) if len(sys.argv) > 2 else 0.80  # fraction of subject height; drops the shirt
 SHARP = int(sys.argv[3]) if len(sys.argv) > 3 else 150
-CELL = 8.7 / (0.6023 * 7.5)  # ART_LEAD / (Menlo advance * ART_SIZE) from update_profile.py
+CELL = 10.4 / (0.6023 * 9)  # ART_LEAD / (Menlo advance * ART_SIZE) from update_profile.py
 LOP, HIP = 0.04, 0.99
 RAMP = " .:-=+*#%"  # light -> dark
 

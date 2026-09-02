@@ -1,28 +1,35 @@
 """Turn the GitHub avatar into the ASCII portrait for update_profile.py's ART block.
 
     pip install pillow
-    python avatar_to_ascii.py            # prints the art, paste it into ART
-    python avatar_to_ascii.py 66 40 0.82 # cols rows keep
+    python avatar_to_ascii.py             # prints the art, paste it into ART
+    python avatar_to_ascii.py 95 0.80 150 # cols keep sharpen
 
-Knobs, because no photo maps cleanly to 9 grey levels:
-  COLS/ROWS  more cells = more face, smaller type (ART_SIZE in update_profile.py)
-  KEEP       fraction of the subject's height to keep; 0.82 drops most of the shirt
-  P          percentile trimmed off each end of the head's tone band
+Three things this has to get right, learned the hard way on a white-cutout,
+flat-lit photo:
 
-Background is found by flood-filling in from the corners, not by brightness, so a
-bright forehead never gets mistaken for the white cutout. Contrast is then
-stretched across the *head's* own tone band -- a black shirt would otherwise eat
-the whole ramp and flatten the face to two characters.
+  Aspect.  A character cell is ~1.93x taller than it is wide (ART_LEAD over
+  ART_SIZE * the font's advance width), so ROWS is derived from the crop, not
+  chosen. Picking it by hand is what makes ASCII portraits look stretched.
+
+  Background.  Found by flood-filling in from the four corners, not by a
+  brightness threshold -- lit skin is brighter than parts of the shirt, so a
+  threshold eats the forehead.
+
+  Tone band.  Contrast is stretched over the head's own percentile band. A
+  black shirt otherwise claims the whole ramp and flattens the face to two
+  characters. LOP/HIP trim the ends; drop HIP toward 0.9 to blow out the
+  cheeks, raise LOP to keep more of the hair mass dark.
 """
 import sys
 import urllib.request
-from PIL import Image, ImageDraw, ImageOps
+from PIL import Image, ImageDraw, ImageFilter, ImageOps
 
 USER = "JoshBonhage"
-COLS = int(sys.argv[1]) if len(sys.argv) > 1 else 66
-ROWS = int(sys.argv[2]) if len(sys.argv) > 2 else 40
-KEEP = float(sys.argv[3]) if len(sys.argv) > 3 else 0.82
-P = 0.05
+COLS = int(sys.argv[1]) if len(sys.argv) > 1 else 95      # 95 is the widest that clears INFO_X
+KEEP = float(sys.argv[2]) if len(sys.argv) > 2 else 0.80  # fraction of subject height; drops the shirt
+SHARP = int(sys.argv[3]) if len(sys.argv) > 3 else 150
+CELL = 8.7 / (0.6023 * 7.5)  # ART_LEAD / (Menlo advance * ART_SIZE) from update_profile.py
+LOP, HIP = 0.04, 0.99
 RAMP = " .:-=+*#%"  # light -> dark
 
 with urllib.request.urlopen(f"https://github.com/{USER}.png?size=460") as r:
@@ -35,13 +42,19 @@ for corner in [(0, 0), (im.width - 1, 0), (0, im.height - 1), (im.width - 1, im.
 bg = flood.point(lambda v: 255 if v == 128 else 0)
 
 im, bg = im.crop(box := ImageOps.invert(bg).getbbox()), bg.crop(box)
-im, bg = (i.crop((0, 0, im.width, int(im.height * KEEP))) for i in (im, bg))
-im, bg = im.resize((COLS, ROWS), Image.LANCZOS), bg.resize((COLS, ROWS), Image.LANCZOS)
+im, bg = [i.crop((0, 0, im.width, int(im.height * KEEP))) for i in (im, bg)]
+rows = round(COLS * (im.height / im.width) / CELL)
+cell_px = im.width / COLS
+
+im = im.filter(ImageFilter.GaussianBlur(cell_px / 3))  # skin grain would just become speckle
+im = im.filter(ImageFilter.UnsharpMask(radius=cell_px * 2, percent=SHARP, threshold=1))
+im, bg = im.resize((COLS, rows), Image.LANCZOS), bg.resize((COLS, rows), Image.LANCZOS)
 px, bgp = im.load(), bg.load()
 
-head = sorted(px[x, y] for y in range(int(ROWS * 0.7)) for x in range(COLS) if bgp[x, y] < 128)
-lo, hi = head[int(len(head) * P)], head[int(len(head) * (1 - P))]
-for y in range(ROWS):
+head = sorted(px[x, y] for y in range(int(rows * 0.7)) for x in range(COLS) if bgp[x, y] < 128)
+lo, hi = head[int(len(head) * LOP)], head[min(int(len(head) * HIP), len(head) - 1)]
+print(f"{COLS}x{rows}, tone band {lo}-{hi}", file=sys.stderr)
+for y in range(rows):
     row = ""
     for x in range(COLS):
         if bgp[x, y] >= 128:

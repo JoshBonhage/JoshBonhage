@@ -193,7 +193,7 @@ def info_lines(s):
         kv("Uptime", f"{y} years, {m} months, {d} days"),
         kv("Host", "The Amazon Whisperer"),
         kv("Kernel", "Growth Engineer"),
-        kv("IDE", "Claude Code, VS Code"),
+        kv("IDE", "Claude Code, nvim"),
         [],
         kv("Languages.Programming", "TypeScript, Rust, Python, Shell"),
         kv("Languages.Real", "English"),
